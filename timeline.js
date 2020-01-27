@@ -143,3 +143,4 @@ const clickMore = function(e) {
 more.addEventListener('click', clickMore);
 // more.removeEventListener('click', clickMore);
 })();
+// 커밋테스트
