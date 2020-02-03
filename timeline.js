@@ -96,8 +96,6 @@ let grid = article.children[0].firstElementChild;
 let loading = article.children[1].firstElementChild;
 let more = article.children[2].firstElementChild;
 let p = 1;
-// 1페이지 호출 후 p가 2로 늘어남 (1만큼) - 증가연산은 값 평가 이후 수행됨
-const timelineList = await fetchApiData(url, p++);
 const divide = function(list, size) {
     const copy = list.slice();
     const cnt = Math.floor(copy.length / size);
@@ -108,39 +106,71 @@ const divide = function(list, size) {
     }
     return listList;
 };
-const listList = divide(timelineList, 3);
-listList.forEach(list => {
-    grid.insertAdjacentHTML('beforeend', `
-        <div class="Nnq7C weEfm">
-        </div>
-    `);
-    let row = grid.lastElementChild;
 
-    list.forEach(data => {
-        row.insertAdjacentHTML('beforeend', `
-            <div class="v1Nh3 kIKUG _bz0w">
-                <a href="javascript:;">
-                    <div class="eLAPa">
-                        <div class="KL4Bh"><img class="FFVAD" decoding="auto" src="${IMG_PATH}${data.img}" style="object-fit: cover;"></div>
-                    </div>
-                </a>
+/* XXX 기존에 선생님께서 작성하신 조회 API 요청/더링을 하나의 함수로 묶어서 최초 렌더링할 때, 더보기 버튼 클릭 할 때마다 호출하는 방식으로 바꾸었습니다. 이렇게 해도 괜찮을까요...
+await은 async 함수 바로 안에서만 쓰여야 해서 async 함수를 썼는데, 이렇게 async 함수가 중첩되어도 되는 건지도 궁금합니다. */
+const renderPage = async () => {
+    // 더보기 버튼 숨김
+    more.style.display = 'none';
+
+    // 1페이지 호출 후 p가 2로 늘어남 (1만큼) - 증가연산은 값 평가 이후 수행됨
+    const timelineList = await fetchApiData(url, p++);
+
+    const listList = divide(timelineList, 3);
+
+    listList.forEach(list => {
+        grid.insertAdjacentHTML('beforeend', `
+            <div class="Nnq7C weEfm">
             </div>
         `);
+        let row = grid.lastElementChild;
+    
+        list.forEach(data => {
+            row.insertAdjacentHTML('beforeend', `
+                <div class="v1Nh3 kIKUG _bz0w">
+                    <a href="javascript:;">
+                        <div class="eLAPa">
+                            <div class="KL4Bh"><img class="FFVAD" decoding="auto" src="${IMG_PATH}${data.img}" style="object-fit: cover;"></div>
+                        </div>
+                    </a>
+                </div>
+            `);
+        });
     });
-});
+    
+    // 로딩바 숨김
+    loading.parentElement.style.display = 'none';
+
+    if(p <= totalPage) { 
+        // 다음 페이지가 있을 경우, 더보기 버튼 표시
+        more.style.display = '';
+    } else { 
+        // 다음 페이지가 없을 경우, clickMore 이벤트 리스너 제거
+        more.removeEventListener('click', clickMore);
+    }
+};
+
+/* XXX 강의노트에서 '1페이지 렌더링 후 totalPage 취득 -> (고도화) 1페이지 렌더링과 totalPage 취득 페럴럴하게 프로세싱' 적혀있는 이 부분이 잘 이해되지 않습니다. 
+지금 구조는 처음 infoData를 가지고 올 때 totalPage를 취득한 후 1페이지를 렌더링하였는데 이 순서를 바꾸어야 하는 건가요? */
+
+// 1페이지 렌더링
+renderPage();
 
 // 필요한 시점에 로딩바(의 부모 래퍼div), 더보기버튼(의 부모 래퍼div) display: none; 제거
 more.parentElement.style.display = '';
 // more.parentElement.style.display = 'none';
-loading.parentElement.style.display = '';
+// loading.parentElement.style.display = '';
 // loading.parentElement.style.display = 'none';
+
 console.log('>> p: ', p);
 console.log('>> totalPage: ', totalPage);
 const clickMore = function(e) {
-    alert('더보기 로직개발 필요');
+    // 로딩바 표시
+    loading.parentElement.style.display = 'block';
+    // 각 페이지 호출 및 렌더링
+    renderPage();
 }
 // 필요한 시점에 추가한 이벤트리스너 제거
 more.addEventListener('click', clickMore);
 // more.removeEventListener('click', clickMore);
 })();
-// 커밋테스트
