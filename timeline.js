@@ -107,11 +107,16 @@ const divide = function(list, size) {
     return listList;
 };
 
-/* XXX 기존에 선생님께서 작성하신 조회 API 요청/렌더링을 하나의 함수로 묶어서 최초 렌더링할 때, 더보기 버튼 클릭 할 때마다 호출하는 방식으로 바꾸었습니다. 이렇게 해도 괜찮을까요...
+/* 기존에 선생님께서 작성하신 조회 API 요청/렌더링을 하나의 함수로 묶어서 최초 렌더링할 때, 더보기 버튼 클릭 할 때마다 호출하는 방식으로 바꾸었습니다. 이렇게 해도 괜찮을까요...
 await은 async 함수 바로 안에서만 쓰여야 해서 async 함수를 썼는데, 이렇게 async 함수가 중첩되어도 되는 건지도 궁금합니다. */
+/* COMMENT async-await는 원래 체인처럼 연결됩니다. await 없이 async 함수를 사용하면 비동기로 동작하고, await와 함께 사용하면 동기로 동작합니다.
+함수로 묶은 단위가 살짝 아쉽기는 한데, 일단 로직 상으로 문제는 없습니다. 구조 관련된 것은 매 주차별로 조금씩 고도화 해나가겠습니다.
+(로딩바와 더보기버튼 깔끔하게 동작할 수 있도록 관련로직 조금 수정 했습니다.) */
 const renderPage = async () => {
     // 더보기 버튼 숨김
-    more.style.display = 'none';
+    more.parentElement.style.display = 'none';
+    // 로딩바 표시
+    loading.parentElement.style.display = 'block';
 
     // 1페이지 호출 후 p가 2로 늘어남 (1만큼) - 증가연산은 값 평가 이후 수행됨
     const timelineList = await fetchApiData(url, p++);
@@ -143,21 +148,25 @@ const renderPage = async () => {
 
     if(p <= totalPage) { 
         // 다음 페이지가 있을 경우, 더보기 버튼 표시
-        more.style.display = '';
+        more.parentElement.style.display = '';
     } else { 
         // 다음 페이지가 없을 경우, clickMore 이벤트 리스너 제거
         more.removeEventListener('click', clickMore);
     }
 };
 
-/* XXX 강의노트에서 '1페이지 렌더링 후 totalPage 취득 -> (고도화) 1페이지 렌더링과 totalPage 취득 페럴럴하게 프로세싱' 적혀있는 이 부분이 잘 이해되지 않습니다. 
+/* 강의노트에서 '1페이지 렌더링 후 totalPage 취득 -> (고도화) 1페이지 렌더링과 totalPage 취득 페럴럴하게 프로세싱' 적혀있는 이 부분이 잘 이해되지 않습니다. 
 지금 구조는 처음 infoData를 가지고 올 때 totalPage를 취득한 후 1페이지를 렌더링하였는데 이 순서를 바꾸어야 하는 건가요? */
+/* COMMENT totalPage가 없어도 1페이지를 요청할 수 있고 (적어도 1페이지는 있을테니), 1페이지가 없어도 totalPage를 요청할 수 있습니다.
+위/아래 영역은 서로 독립적으로 렌더링 할 수 있고, 1페이지 로드완료 && totalPage 판단완료 시에 더보기 영역 노출여부 판단하면 됩니다
+현재 renderPage가 await 없이 비동기적으로 수행되고 있는데, Promise.all() 같은 API로 두 프로미스(async 붙은 함수는 프로미스 입니다) 모두의 완료시점을 잡을 수 있습니다
+비동기 및 프로미스 관련내용은 3주차에 더 자세히 진행하겠습니다. */
 
 // 1페이지 렌더링
 renderPage();
 
 // 필요한 시점에 로딩바(의 부모 래퍼div), 더보기버튼(의 부모 래퍼div) display: none; 제거
-more.parentElement.style.display = '';
+// more.parentElement.style.display = '';
 // more.parentElement.style.display = 'none';
 // loading.parentElement.style.display = '';
 // loading.parentElement.style.display = 'none';
@@ -165,8 +174,6 @@ more.parentElement.style.display = '';
 console.log('>> p: ', p);
 console.log('>> totalPage: ', totalPage);
 const clickMore = function(e) {
-    // 로딩바 표시
-    loading.parentElement.style.display = 'block';
     // 각 페이지 호출 및 렌더링
     renderPage();
 }
