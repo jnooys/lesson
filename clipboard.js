@@ -141,6 +141,7 @@ const grid = await (async ($parent, url) => {
     let $el;
 
     let page = 1;
+    const ITEM_PER_ROW = 3;
     const timelineList = await common.fetchApiData(url, page++);
 
     const create = () => {
@@ -164,18 +165,20 @@ const grid = await (async ($parent, url) => {
         
         return listList;
     };
-    const listList = divide(timelineList, 3);
+    const listList = divide(timelineList, ITEM_PER_ROW);
 
     const filter = () => {
-        // 현재는 각 컴포넌트가 destroy 미지원 -> 그냥 DOM만 비우고, 새로 gridItem들 생성
-        $el.lastElementChild.firstElementChild.innerHTML = '';
         // TODO 검색창 input에 key이벤트 발생시 검색로직 수행
+        $el.lastElementChild.firstElementChild.innerHTML = '';
+        divide(timelineList.filter(/* TODO */), ITEM_PER_ROW)
+            .forEach(list => {/* TODO */});
     }
 
     const sort = () => {
-        // 현재는 각 컴포넌트가 destroy 미지원 -> 그냥 DOM만 비우고, 새로 gridItem들 생성
-        $el.lastElementChild.firstElementChild.innerHTML = '';
         // TODO 최신순/인기순 클릭시 해당 정렬로직 수행
+        $el.lastElementChild.firstElementChild.innerHTML = '';
+        divide(timelineList.sort(/* TODO */), ITEM_PER_ROW)
+            .forEach(list => {/* TODO */});
     }
 
     const render = () => {
