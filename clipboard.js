@@ -144,6 +144,9 @@ const grid = await (async ($parent, url) => {
     const ITEM_PER_ROW = 3;
     const timelineList = await common.fetchApiData(url, page++);
 
+    // 정렬& 검색된 리스트를 담을 변수 추가
+    let sortedList = filteredList = [...timelineList];
+
     const create = () => {
         render();
         $el = $parent.lastElementChild;
@@ -167,18 +170,51 @@ const grid = await (async ($parent, url) => {
     };
     const listList = divide(timelineList, ITEM_PER_ROW);
 
-    const filter = () => {
+    const filter = (value) => {
+        // 검색 함수
+        const filterValue = ((value) => {
+            return (list) => {
+                const strings = list.name + list.text;
+                return strings.match(value);
+            }
+        })(value);
+
         // TODO 검색창 input에 key이벤트 발생시 검색로직 수행
         $el.lastElementChild.firstElementChild.innerHTML = '';
-        divide(timelineList.filter(/* TODO */), ITEM_PER_ROW)
-            .forEach(list => {/* TODO */});
+
+        // 검색 결과 담기
+        filteredList = sortedList.filter(filterValue);
+        // 검색 결과가 없을 경우 or 검색 인풋이 비었을 경우에는 검색 전 정렬된 상태를 담기
+        if(filteredList.length < 1 ) {
+            filteredList = [...sortedList];
+        }
+
+        return divide(filteredList, ITEM_PER_ROW);
+        //    .forEach(list => {/* TODO */});
     }
 
-    const sort = () => {
+    const sort = (type) => {
+        // 정렬 방법에 따른 함수 return 
+        const sortType = ((type) => {
+            switch (type) {
+                case 'new' : 
+                    return (a, b) => new Date(b.timestamp) - new Date(a.timestamp);
+                case 'hot' :
+                    return (a, b) => (Number(b.clipCount) + Number(b.commentCount) * 2) - (Number(a.clipCount) + Number(a.commentCount) * 2);
+                default : 
+                    return;
+            }
+        })(type);
+
         // TODO 최신순/인기순 클릭시 해당 정렬로직 수행
         $el.lastElementChild.firstElementChild.innerHTML = '';
-        divide(timelineList.sort(/* TODO */), ITEM_PER_ROW)
-            .forEach(list => {/* TODO */});
+
+        // timelineList 정렬
+        sortedList.sort(sortType);
+
+        // 검색된 상태에서 정렬된 리스트 return
+        return divide(filteredList.sort(sortType), ITEM_PER_ROW);
+        //    .forEach(list => {/* TODO */});
     }
 
     const render = () => {
@@ -217,19 +253,19 @@ const grid = await (async ($parent, url) => {
     }
 
     create();
-    return { $el, listList }
+    return { $el, listList, filter, sort }
 })(timelineContent.$el.firstElementChild, timeline.url);
 
-grid.listList.forEach(list => {
-    const gridItem = (($parent, list) => {
-        let $el;
+// listList.forEach 재사용을 위해 gridItem 함수로 묶어줌
+const gridItem = (($parent, listList) => {
+    let $el;
 
-        const create = () => {
-            render(list);
-            $el = $parent.lastElementChild;
-        }
+    const create = (listList) => {
+        render(listList);
+    }
 
-        const render = (list) => {
+    const render = (listList) => {
+        listList.forEach(list => {
             const html = list.reduce((html, data) => {
                 const img = (data.img || '') && `
                     <a href="javascript:;">
@@ -251,11 +287,68 @@ grid.listList.forEach(list => {
                     ${html}
                 </div>
             `);
-        }
-    
-        create();
-        return { $el }
-    })(grid.$el.lastElementChild.firstElementChild, list);
-});
 
+        })
+    }
+
+    create(listList);
+    return { create };
+})(grid.$el.lastElementChild.firstElementChild, grid.listList);
+
+// 이벤트 함수
+const event = (() => {
+
+    // 최신순 버튼
+    const $btnNew = grid.$el.firstElementChild.getElementsByTagName('button')[0];
+    // 인기순 버튼
+    const $btnHot = grid.$el.firstElementChild.getElementsByTagName('button')[1];
+    // 검색 인풋
+    const $iptSearch = grid.$el.firstElementChild.getElementsByTagName('input')[0];
+
+    // 정렬 버튼 공통 함수
+    const sortItem = (type) => {
+        listList = grid.sort(type);
+        gridItem.create(listList);
+    }
+
+    // 검색 인풋 함수
+    const searchItem = (value) => {
+        listList = grid.filter(value);
+        gridItem.create(listList);
+    }
+
+    // 인기순 버튼 이벤트 핸들러
+    const clickBtnHot = () => {
+        sortItem('hot');
+    }
+
+    // 최신순 버튼 이벤트 핸들러
+    const clickBtnNew = () => {
+        sortItem('new');
+    }
+
+    // 검색 인풋 이벤트 핸들러
+    const changeSearch = (e) => {
+        let value = e.target.value;
+        searchItem(value);
+    }
+
+    // 이벤트 리스너 추가
+    const addEvent = () => {
+        $btnNew.addEventListener('click', clickBtnNew);
+        $btnHot.addEventListener('click', clickBtnHot);
+        $iptSearch.addEventListener('keyup', changeSearch);
+    }
+
+    // 이벤트 리스너 제거
+    const removeEvent = () => {
+        $btnNew.removeEventListener('click', clickBtnNew);
+        $btnHot.removeEventListener('click', clickBtnHot);
+        $iptSearch.removeEventListener('keyup', changeSearch);
+    }
+
+    
+    addEvent(); 
+    return { addEvent, removeEvent };
+})();
 })();
