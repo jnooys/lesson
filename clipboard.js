@@ -31,11 +31,12 @@
                 if(start>= end) return;
                 let i = start;
                 let j = end;
-                const pivot = Math.floor((i+j) / 2);
+                const center = Math.floor((i+j) / 2);
+                const pivot = this[center];
     
-                while (i < j){
-                    while (func(this[i], this[pivot])) i++;
-                    while (func(this[pivot], this[j])) j--;
+                while (i <= j){
+                    while (func(this[i], pivot)) i++;
+                    while (func(pivot, this[j])) j--;
                     if(i <= j) {
                         let temp = this[i];
                         this[i] = this[j];
