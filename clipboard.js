@@ -33,7 +33,7 @@
                 let j = end;
                 const pivot = Math.floor((i+j) / 2);
     
-                while (i <= j){
+                while (i < j){
                     while (func(this[i], this[pivot])) i++;
                     while (func(this[pivot], this[j])) j--;
                     if(i <= j) {
