@@ -34,8 +34,8 @@
                 const pivot = Math.floor((i+j) / 2);
     
                 while (i <= j){
-                    while (func(this[pivot], this[i])) i++;
-                    while (func(this[j], this[pivot])) j--;
+                    while (func(this[i], this[pivot])) i++;
+                    while (func(this[pivot], this[j])) j--;
                     if(i <= j) {
                         let temp = this[i];
                         this[i] = this[j];
@@ -238,9 +238,9 @@
             const sortType = ((type) => {
                 switch (type) {
                     case 'new' : 
-                        return (a, b) => new Date(b.timestamp) > new Date(a.timestamp);
+                        return (a, b) => new Date(a.timestamp) > new Date(b.timestamp);
                     case 'hot' :
-                        return (a, b) => (Number(b.clipCount) + Number(b.commentCount) * 2) > (Number(a.clipCount) + Number(a.commentCount) * 2);
+                        return (a, b) => (Number(a.clipCount) + Number(a.commentCount) * 2) > (Number(b.clipCount) + Number(b.commentCount) * 2);
                     default : 
                         return;
                 }
