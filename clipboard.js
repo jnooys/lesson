@@ -177,6 +177,7 @@
         return { $el }
     })(timeline.$el);
     
+    // COMMENT 정렬+검색 복합적으로 잘 동작하네요. 잘 하셨어요.
     const grid = await (async ($parent, url) => {
         let $el;
     
@@ -185,6 +186,8 @@
         const timelineList = await common.fetchApiData(url, page++);
     
         // 정렬& 검색된 리스트를 담을 변수 추가
+        /* TODO const로 바꾸고, 이후 걸리는 로직들도 함께 수정해주면 좋을 것 같습니다
+        현재는 list 변수에 undefined 같은 게 들어오는 게 방지가 안 되는 구조입니다 (물론 잘 짜서 그럴일이 절대 없으면 문제 없겠지만) */
         let sortedList = [...timelineList];
         let filteredList = [...timelineList];
     
@@ -211,19 +214,16 @@
         };
         const listList = divide(timelineList, ITEM_PER_ROW);
     
+        // TODO 함수형 비즈니스 로직은 메소드 밖으로 분리도 가능할 것 같습니다 (수정완료)
+        // 검색 함수
+        const filterList = (value) => (list) => {
+            const strings = list.name + list.text;
+            return strings.match(value);
+        };
         const filter = (value) => {
-            // 검색 함수
-            const filterValue = ((value) => {
-                return (list) => {
-                    const strings = list.name + list.text;
-                    return strings.match(value);
-                }
-            })(value);
-    
-            // TODO 검색창 input에 key이벤트 발생시 검색로직 수행
             $el.lastElementChild.firstElementChild.innerHTML = '';
             // 검색 결과 담기
-            filteredList = sortedList.myFilter(filterValue);
+            filteredList = sortedList.myFilter(filterList(value));
     
             // 검색 결과가 없을 경우 or 검색 인풋이 비었을 경우에는 검색 전 정렬된 상태를 담기
             if(filteredList.length < 1 ) {
@@ -234,27 +234,20 @@
             //    .forEach(list => {/* TODO */});
         }
     
+        // TODO 적절한 패턴 적용하여, 조금 더 견고하게 리팩토링 했습니다 (수정완료)
+        // 정렬 방법에 따른 함수
+        const sortType = {
+            new: (a, b) => new Date(a.timestamp) > new Date(b.timestamp),
+            hot: (a, b) => (Number(a.clipCount) + Number(a.commentCount) * 2) > (Number(b.clipCount) + Number(b.commentCount) * 2),
+        };
         const sort = (type) => {
-            // 정렬 방법에 따른 함수 return 
-            const sortType = ((type) => {
-                switch (type) {
-                    case 'new' : 
-                        return (a, b) => new Date(a.timestamp) > new Date(b.timestamp);
-                    case 'hot' :
-                        return (a, b) => (Number(a.clipCount) + Number(a.commentCount) * 2) > (Number(b.clipCount) + Number(b.commentCount) * 2);
-                    default : 
-                        return;
-                }
-            })(type);
-    
-            // TODO 최신순/인기순 클릭시 해당 정렬로직 수행
             $el.lastElementChild.firstElementChild.innerHTML = '';
     
             // 정렬된 timelineList 저장
-            sortedList.mySort(sortType);
+            sortedList.mySort(sortType[type]);
     
             // 검색된 상태에서 정렬된 리스트 return
-            return divide(filteredList.mySort(sortType), ITEM_PER_ROW);
+            return divide(filteredList.mySort(sortType[type]), ITEM_PER_ROW);
             //    .forEach(list => {/* TODO */});
         }
     
@@ -336,6 +329,8 @@
         return { create };
     })(grid.$el.lastElementChild.firstElementChild, grid.listList);
     
+    /* FIXME 이벤트 바인딩을 컴포넌트와 무관하게 하면, 컴포넌트가 컴포넌트가 아니게 됩니다
+    grid의 내부, 또는 grid와 유관한 곳에서 이벤트 바인딩 하도록 리팩토링하면 좋을 것 같습니다 */
     // 이벤트 함수
     const event = (() => {
     
@@ -376,6 +371,8 @@
     
         // 이벤트 리스너 추가
         const addEvent = () => {
+            /* COMMENT 성능 최적화를 위해, 부모 엘리먼트에 이벤트를 위임하는 방법도 있습니다
+            이 경우, data-type 같은걸로 hot과 new를 판단할 수 있습니다. 구조 참고 해보세요. */
             $btnNew.addEventListener('click', clickBtnNew);
             $btnHot.addEventListener('click', clickBtnHot);
             $iptSearch.addEventListener('keyup', changeSearch);
