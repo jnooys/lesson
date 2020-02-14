@@ -156,7 +156,7 @@ const TimelineContent = ($parent, url = '', profileData = {}, totalPage = 1) => 
     }
 
     const destroy = () => {
-        Array.isArray($feedList) && $feedList.forEach($feedItem => $feedItem.destroy());
+        $feed && $feed.destroy();
         $parent.removeChild($el);
     }
 
@@ -210,7 +210,7 @@ const Feed = ($parent, profileData = {}, pageDataList = []) => {
     }
 
     const destroy = () => {
-        $elList.forEach($parent.removeChild($el));
+        $elList.forEach($el => $parent.removeChild($el));
     }
 
     const addFeedItems = (profileData = {}, pageDataList = []) => {
