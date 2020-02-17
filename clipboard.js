@@ -177,20 +177,43 @@
         return { $el }
     })(timeline.$el);
     
+    // COMMENT 정렬+검색 복합적으로 잘 동작하네요. 잘 하셨어요.
     const grid = await (async ($parent, url) => {
         let $el;
     
         let page = 1;
+        let keyword = ''; // 검색 input value 값
         const ITEM_PER_ROW = 3;
         const timelineList = await common.fetchApiData(url, page++);
     
         // 정렬& 검색된 리스트를 담을 변수 추가
-        let sortedList = [...timelineList];
-        let filteredList = [...timelineList];
+        /* TODO const로 바꾸고, 이후 걸리는 로직들도 함께 수정해주면 좋을 것 같습니다
+        현재는 list 변수에 undefined 같은 게 들어오는 게 방지가 안 되는 구조입니다 (물론 잘 짜서 그럴일이 절대 없으면 문제 없겠지만) */
     
         const create = () => {
             render();
             $el = $parent.lastElementChild;
+            addEvent();
+        }
+
+        /* FIXME 이벤트 바인딩을 컴포넌트와 무관하게 하면, 컴포넌트가 컴포넌트가 아니게 됩니다
+        grid의 내부, 또는 grid와 유관한 곳에서 이벤트 바인딩 하도록 리팩토링하면 좋을 것 같습니다 */
+
+        // 이벤트 바인딩
+        const addEvent = () => {
+            const $buttonParent = $el.firstElementChild;
+            const $input = $el.querySelector('input');
+
+            $input.addEventListener('keyup', (e) => {
+                keyword = e.target.value;
+                filter(timelineList);
+            });
+
+            // XXX 버튼 부모 엘리먼트에 이벤트 위임, 버튼의 data-type을 파라미터로 전달
+            $buttonParent.addEventListener('click', (e) => {
+                const type = e.target.dataset.type;
+                type && sort(type); // 버튼 외의 것을 클릭하면 type이 없으므로 && 연산자 추가
+            });
         }
     
         const divide = (list, size) => {
@@ -211,59 +234,46 @@
         };
         const listList = divide(timelineList, ITEM_PER_ROW);
     
-        const filter = (value) => {
-            // 검색 함수
-            const filterValue = ((value) => {
-                return (list) => {
-                    const strings = list.name + list.text;
-                    return strings.match(value);
-                }
-            })(value);
-    
-            // TODO 검색창 input에 key이벤트 발생시 검색로직 수행
+        // TODO 함수형 비즈니스 로직은 메소드 밖으로 분리도 가능할 것 같습니다 (수정완료)
+        // 검색 함수
+        const filterList = (value) => (list) => {
+            const strings = list.name + list.text;
+            return strings.match(value);
+        };
+        const filter = (list) => {
             $el.lastElementChild.firstElementChild.innerHTML = '';
+
             // 검색 결과 담기
-            filteredList = sortedList.myFilter(filterValue);
-    
-            // 검색 결과가 없을 경우 or 검색 인풋이 비었을 경우에는 검색 전 정렬된 상태를 담기
-            if(filteredList.length < 1 ) {
-                filteredList = [...sortedList];
+            const filteredList = keyword ? list.myFilter(filterList(keyword)) : [...list];
+            if(filteredList.length < 1) {
+                filteredList.push(...list);
             }
-    
-            return divide(filteredList, ITEM_PER_ROW);
-            //    .forEach(list => {/* TODO */});
+
+            gridItem.create(divide(filteredList, ITEM_PER_ROW));
         }
     
+        // TODO 적절한 패턴 적용하여, 조금 더 견고하게 리팩토링 했습니다 (수정완료)
+        // 정렬 방법에 따른 함수
+        const sortType = {
+            new: (a, b) => new Date(a.timestamp) > new Date(b.timestamp),
+            hot: (a, b) => (Number(a.clipCount) + Number(a.commentCount) * 2) > (Number(b.clipCount) + Number(b.commentCount) * 2),
+        };
         const sort = (type) => {
-            // 정렬 방법에 따른 함수 return 
-            const sortType = ((type) => {
-                switch (type) {
-                    case 'new' : 
-                        return (a, b) => new Date(a.timestamp) > new Date(b.timestamp);
-                    case 'hot' :
-                        return (a, b) => (Number(a.clipCount) + Number(a.commentCount) * 2) > (Number(b.clipCount) + Number(b.commentCount) * 2);
-                    default : 
-                        return;
-                }
-            })(type);
-    
-            // TODO 최신순/인기순 클릭시 해당 정렬로직 수행
             $el.lastElementChild.firstElementChild.innerHTML = '';
     
             // 정렬된 timelineList 저장
-            sortedList.mySort(sortType);
+            timelineList.mySort(sortType[type]);
     
-            // 검색된 상태에서 정렬된 리스트 return
-            return divide(filteredList.mySort(sortType), ITEM_PER_ROW);
-            //    .forEach(list => {/* TODO */});
+            // 검색 값에 따라 렌더링
+            filter(timelineList);
         }
     
         const render = () => {
             $parent.insertAdjacentHTML('beforeend', `
                 <article class="FyNDV">
                     <div class="Igw0E rBNOH YBx95 ybXk5 _4EzTm soMvl JI_ht bkEs3 DhRcB">
-                        <button class="sqdOP L3NKy y3zKF JI_ht" type="button">최신순</button>
-                        <button class="sqdOP L3NKy y3zKF JI_ht" type="button">인기순</button>
+                        <button class="sqdOP L3NKy y3zKF JI_ht" type="button" data-type="new">최신순</button>
+                        <button class="sqdOP L3NKy y3zKF JI_ht" type="button" data-type="hot">인기순</button>
                         <h1 class="K3Sf1">
                             <div class="Igw0E rBNOH eGOV_ ybXk5 _4EzTm">
                                 <div class="Igw0E IwRSH eGOV_ vwCYk">
@@ -335,61 +345,4 @@
         create(listList);
         return { create };
     })(grid.$el.lastElementChild.firstElementChild, grid.listList);
-    
-    // 이벤트 함수
-    const event = (() => {
-    
-        // 최신순 버튼
-        const $btnNew = grid.$el.firstElementChild.getElementsByTagName('button')[0];
-        // 인기순 버튼
-        const $btnHot = grid.$el.firstElementChild.getElementsByTagName('button')[1];
-        // 검색 인풋
-        const $iptSearch = grid.$el.firstElementChild.getElementsByTagName('input')[0];
-    
-        // 정렬 버튼 공통 함수
-        const sortItem = (type) => {
-            listList = grid.sort(type);
-            gridItem.create(listList);
-        }
-    
-        // 검색 인풋 함수
-        const searchItem = (value) => {
-            listList = grid.filter(value);
-            gridItem.create(listList);
-        }
-    
-        // 인기순 버튼 이벤트 핸들러
-        const clickBtnHot = () => {
-            sortItem('hot');
-        }
-    
-        // 최신순 버튼 이벤트 핸들러
-        const clickBtnNew = () => {
-            sortItem('new');
-        }
-    
-        // 검색 인풋 이벤트 핸들러
-        const changeSearch = (e) => {
-            let value = e.target.value;
-            searchItem(value);
-        }
-    
-        // 이벤트 리스너 추가
-        const addEvent = () => {
-            $btnNew.addEventListener('click', clickBtnNew);
-            $btnHot.addEventListener('click', clickBtnHot);
-            $iptSearch.addEventListener('keyup', changeSearch);
-        }
-    
-        // 이벤트 리스너 제거
-        const removeEvent = () => {
-            $btnNew.removeEventListener('click', clickBtnNew);
-            $btnHot.removeEventListener('click', clickBtnHot);
-            $iptSearch.removeEventListener('keyup', changeSearch);
-        }
-    
-        
-        addEvent(); 
-        return { addEvent, removeEvent };
-    })();
-    })();
+})();
