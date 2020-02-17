@@ -182,13 +182,13 @@
         let $el;
     
         let page = 1;
+        let keyword = ''; // 검색 input value 값
         const ITEM_PER_ROW = 3;
         const timelineList = await common.fetchApiData(url, page++);
     
         // 정렬& 검색된 리스트를 담을 변수 추가
         /* TODO const로 바꾸고, 이후 걸리는 로직들도 함께 수정해주면 좋을 것 같습니다
         현재는 list 변수에 undefined 같은 게 들어오는 게 방지가 안 되는 구조입니다 (물론 잘 짜서 그럴일이 절대 없으면 문제 없겠지만) */
-        const filteredList = [...timelineList];
     
         const create = () => {
             render();
@@ -205,8 +205,8 @@
             const $input = $el.querySelector('input');
 
             $input.addEventListener('keyup', (e) => {
-                let value = e.target.value;
-                filter(value);
+                keyword = e.target.value;
+                filter(timelineList);
             });
 
             // XXX 버튼 부모 엘리먼트에 이벤트 위임, 버튼의 data-type을 파라미터로 전달
@@ -240,24 +240,16 @@
             const strings = list.name + list.text;
             return strings.match(value);
         };
-        const filter = (value) => {
+        const filter = (list) => {
             $el.lastElementChild.firstElementChild.innerHTML = '';
-            // 검색 결과 담기
 
-            /* XXX filteredList를 const로 선언함에 따라 배열 재할당이 안 되므로 splice로 비운 뒤, push로 다시 추가.
-               189번 줄의 TODO를 수정하기 위해 아래와 같이 수정하였는데 이렇게 해도 되는 건지... 궁금합니다.
-            */
-            filteredList.splice(0, filteredList.length);
-            filteredList.push(...timelineList.myFilter(filterList(value)));
-    
-            // 검색 결과가 없을 경우 or 검색 인풋이 비었을 경우에는 검색 전 정렬된 상태를 담기
-            if(filteredList.length < 1 ) {
-                // filteredList를 const로 선언함에 따라 값 변경 시 [...sortedList] 대신 push(...timelineList)
-                filteredList.push(...timelineList);
+            // 검색 결과 담기
+            const filteredList = keyword ? list.myFilter(filterList(keyword)) : [...list];
+            if(filteredList.length < 1) {
+                filteredList.push(...list);
             }
-    
-            const filterItem = divide(filteredList, ITEM_PER_ROW);
-            gridItem.create(filterItem);
+
+            gridItem.create(divide(filteredList, ITEM_PER_ROW));
         }
     
         // TODO 적절한 패턴 적용하여, 조금 더 견고하게 리팩토링 했습니다 (수정완료)
@@ -272,9 +264,8 @@
             // 정렬된 timelineList 저장
             timelineList.mySort(sortType[type]);
     
-            // 검색된 상태에서 정렬된 리스트 return
-            const searchItem = divide(filteredList.mySort(sortType[type]), ITEM_PER_ROW);
-            gridItem.create(searchItem);
+            // 검색 값에 따라 렌더링
+            filter(timelineList);
         }
     
         const render = () => {
