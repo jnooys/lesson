@@ -177,7 +177,7 @@ const TimelineContent = ($parent, url = '', profileData = {}, totalPage = 1) => 
                     $loading.style.display = 'none';
                 }
             }); // rootMargin 미동작 (인스타그램에서 자체적으로 막아놓은 것 같기도 함)
-        });
+        }, {rootMargin: innerHeight + 'px'});
         io.observe($loading);
     }
 
@@ -217,6 +217,24 @@ const Feed = ($parent, profileData = {}, pageDataList = []) => {
         const firstIndex = $parent.children.length;
         render(profileData, pageDataList);
         $elList.push(...[].slice.call($parent.children, firstIndex));
+        // 레이지 로드 추가
+        loadImage();
+    }
+
+    // 레이지 로드
+    const loadImage = () => {
+        const io = new IntersectionObserver((entryList, observer) => {
+            entryList.forEach(entry => {
+                const targetImg = entry.target.querySelector('.FFVAD');
+                if(!entry.isIntersecting) { return; }
+                targetImg.src = targetImg.dataset.src;
+                observer.unobserve(entry.target);
+            });
+        }, {rootMargin: innerHeight + 'px'});
+
+        $elList.forEach($el => {
+            io.observe($el);
+        })
     }
 
     const render = (profileData, pageDataList) => {
