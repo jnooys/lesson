@@ -176,8 +176,8 @@ const TimelineContent = ($parent, url = '', profileData = {}, totalPage = 1) => 
                     observer.unobserve(entry.target);
                     $loading.style.display = 'none';
                 }
-            }); // rootMargin 미동작 (인스타그램에서 자체적으로 막아놓은 것 같기도 함)
-        }, {rootMargin: innerHeight + 'px'});
+            });
+        }, { rootMargin: innerHeight + 'px' });
         io.observe($loading);
     }
 
@@ -240,7 +240,7 @@ const Feed = ($parent, profileData = {}, pageDataList = []) => {
     const render = (profileData, pageDataList) => {
         const html = pageDataList.reduce((html, data) => {
             html += `
-                <article id="feed" class="M9sTE h0YNM SgTZ1">
+                <article class="M9sTE h0YNM SgTZ1">
                     <header class="Ppjfr UE9AK wdOqh">
                         <div class="RR-M- h5uC0 mrq0Z" role="button" tabindex="0">
                             <canvas class="CfWVH" height="126" width="126" style="position: absolute; top: -5px; left: -5px; width: 42px; height: 42px;"></canvas>
