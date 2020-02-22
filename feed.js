@@ -204,8 +204,11 @@ const TimelineContent = ($parent, url = '', profileData = {}, totalPage = 1) => 
 // TODO 뷰 역할인 Feed 컴포넌트에 이미지 레이지로드 기능 추가 - initInfiniteScroll 히스토리 참고
 const Feed = ($parent, profileData = {}, pageDataList = []) => {
     const $elList = [];
+    let io;
 
     const create = () => {
+        // 레이지 로드 추가
+        io = new IntersectionObserver((loadImage), {rootMargin: innerHeight + 'px'});
         addFeedItems(profileData, pageDataList);
     }
 
@@ -217,41 +220,43 @@ const Feed = ($parent, profileData = {}, pageDataList = []) => {
         const firstIndex = $parent.children.length;
         render(profileData, pageDataList);
         $elList.push(...[].slice.call($parent.children, firstIndex));
-        // 레이지 로드 추가
-        loadImage();
+        observeImage();
+        
     }
 
     // 레이지 로드
-    const loadImage = () => {
+    const loadImage = (entryList, observer) => {
         /* TODO 현재는 페이지수 만큼 io객체가 생성되고 있습니다, 만약 10페이지, 100페이지, ... 가 있다면 그 만큼 생성됩니다
         로직상 Feed는 List를 담는 컴포넌트이기 때문에, 사실 io는 하나만 있으면 충분합니다
         io 생성은 컴포넌트 레벨로 올리고, observe하는 로직만 반복되면 성능이 개선될 수 있을 것 같습니다 */
-        const io = new IntersectionObserver((entryList, observer) => {
-            entryList.forEach(entry => {
-                if(!entry.isIntersecting) { return; }
-                /* FIXME 일단 여기서는 FFVAD 클래스가 내부적으로 이미지를 뜻하는 게 아니어서 바람직하지 못합니다
-                해당 클래스가 이미지가 맞더라도, 추후 확장시 다른 엘리먼트에 해당 클래스가 사용되면 버그가 발생합니다
-                또는 해당 클래스의 이름이 변경될 경우에도 의도치 않은 동작이 발생합니다 (이 때는 장애)
-                스타일을 위해 사용한 마크업 상의 클래스는 컴포넌트 로직에서는 되도록 사용을 지양해주세요
-                마크업의 클래스와 컴포넌트의 로직이 의미상으로 1:1로 일치되는 경우는 거의 없습니다
-                거의 대부분 우연히 그 시점에만 때려맞았을 뿐이고, 잠재적인 버그를 갖고 있습니다
-                (참고로 NHN에서는, 꼭 필요할 경우 js-classname 같은 클래스를 직접 추가해서 쓰는 걸 권장합니다)
-                만약 제가 했다면 img[data-src] 정도로 썼을 것 같은데, 여기부터는 취향이라 참고만 해주세요 */
-                // TODO 예외로 튕겨주는 조건문 아래로 이동 했습니다
-                const targetImg = entry.target.querySelector('.FFVAD');
-                targetImg.src = targetImg.dataset.src;
-                // COMMENT data 어트리뷰트 제거 추가 했습니다
-                delete targetImg.dataset.src;
-                observer.unobserve(entry.target);
-            });
-        }, {rootMargin: innerHeight + 'px'});
+        entryList.forEach(entry => {
+            if(!entry.isIntersecting) { return; }
+            /* FIXME 일단 여기서는 FFVAD 클래스가 내부적으로 이미지를 뜻하는 게 아니어서 바람직하지 못합니다
+            해당 클래스가 이미지가 맞더라도, 추후 확장시 다른 엘리먼트에 해당 클래스가 사용되면 버그가 발생합니다
+            또는 해당 클래스의 이름이 변경될 경우에도 의도치 않은 동작이 발생합니다 (이 때는 장애)
+            스타일을 위해 사용한 마크업 상의 클래스는 컴포넌트 로직에서는 되도록 사용을 지양해주세요
+            마크업의 클래스와 컴포넌트의 로직이 의미상으로 1:1로 일치되는 경우는 거의 없습니다
+            거의 대부분 우연히 그 시점에만 때려맞았을 뿐이고, 잠재적인 버그를 갖고 있습니다
+            (참고로 NHN에서는, 꼭 필요할 경우 js-classname 같은 클래스를 직접 추가해서 쓰는 걸 권장합니다)
+            만약 제가 했다면 img[data-src] 정도로 썼을 것 같은데, 여기부터는 취향이라 참고만 해주세요 */
+            // TODO 예외로 튕겨주는 조건문 아래로 이동 했습니다
+            const { target } = entry;
+            target.src = target.dataset.src;
+            // COMMENT data 어트리뷰트 제거 추가 했습니다
+            delete target.dataset.src;
+            observer.unobserve(target);
+        });
         
         /* BUG 매 번 전체 $elList 대상의 이미지 엘리먼트를 긁고 있기 때문에,
         2페이지, 3페이지, ... addFeedItems 호출 시에 이전페이지 이미지들이 다시 옵저버에 등록됩니다
         겸사겸사 delete entry.target.dataset.src; 추가했으니, 끝까지 내렸다가 다시 올려보세요
         해법은 추가한 엘리먼트 대상으로 룩업을 하는 방법이 있을 것 같고 (push 하기 전에 미리 뽑아두고?)
         아니면 data-src 속성을 기준으로 뽑을 수도 있을 것 같습니다 */
-        $elList.forEach($el => {
+    }
+
+    const observeImage = () => {
+        $imgs = $parent.querySelectorAll('img[data-src]');
+        $imgs.forEach($el => {
             io.observe($el);
         })
     }
