@@ -88,6 +88,7 @@ const AutoPageTurner = (() => {
     return AutoPageTurner;
 })();
 
+// 중앙의 컨트롤러 같은 객체
 const ItemDetail = (() => {
     const URL = 'https://my-json-server.typicode.com/it-crafts/lesson/detail/';
 
@@ -129,6 +130,7 @@ const ItemDetail = (() => {
         const listener = e.target.dataset.listener;
         if(listener === 'infinite') {
             // 런타임 부모 강제변경 - 이런 행위는 JS에서만 가능하며, 바람직하진 않으나 강력하다
+            // this._pageTurner을 prototype이 AutoPageTurner.prototype로 변경
             Object.setPrototypeOf(this._pageTurner, AutoPageTurner.prototype);
         }
 
@@ -172,10 +174,54 @@ const ItemDetail = (() => {
     return ItemDetail;
 })();
 
+/* XXX 아이템 움직여주는 객체 
+resize, click 모두 공통으로 $slider를 translate 해야하므로
+1) translate 메소드
+2) $left/$right button 노출 여부 메소드
+3) $pagebar on 값 변경해야 하는 메소드
+이렇게 3개로 분리해서 resize에서는 1)만, click에서는 1), 2), 3) 모두 호출하도록 해봤습니다.
+- 이렇게 구조를 짜는게 맞는지...
+- 클릭할 때는 1), 2), 3)을 모두 한 함수에서 호출하도록 묶어주는 게 좋을지...   
+구조 짜는게 제일 어렵네요 ㅠㅠ
+*/
+const ItemTurner = (() => {
+    const ItemTurner = function($slider, $left, $right, $pagebar){
+        this.$slider = $slider;
+        this.$left = $left;
+        this.$right = $right;
+        this.$pagebar = $pagebar;
+    }
+    const proto = ItemTurner.prototype;
+
+    proto.translate = function(index, innerWidth, duration = 0){
+        const coordX = index * innerWidth * -1;
+        this.$slider.style.transform = `translateX(${coordX}px)`;
+        this.$slider.style.transitionDuration = `${duration}ms`;
+    }
+
+    proto.setButton = function(index, length){
+        if(index <= 0) {
+            this.$left.style.display = 'none';
+        } else if (index >= length - 1) {
+            this.$right.style.display = 'none';
+        }
+    }
+
+    proto.setPagebar = function(index, onClass){
+        const $prevPagebar = this.$pagebar.getElementsByClassName(onClass)[0];
+        const $nextPagebar = this.$pagebar.children[index];
+        $prevPagebar.classList.remove(onClass);
+        $nextPagebar.classList.add(onClass);
+    }
+
+    return ItemTurner;
+})();
+
 const Item = (() => {
     const Item = function($parent, detailData = {}, imgDataList = [], profileData = {}) {
         this.$parent = $parent;
         this._dataList = imgDataList;
+        this.onClass = 'XCodT';
         this.render(detailData, profileData);
         this.$el = this.$parent.firstElementChild;
         this.$slider = this.$el.querySelector('.js-slider');
@@ -183,6 +229,13 @@ const Item = (() => {
         this.$left = this.$el.querySelector('.js-left');
         this.$right = this.$el.querySelector('.js-right');
         this.$pagebar = this.$el.querySelector('.js-pagebar');
+        this.innerWidth = innerWidth;
+        this.index = 0;
+        this.length = this._dataList.length;
+        this._throttling = null;
+        this._itemTurner = new ItemTurner(this.$slider, this.$left, this.$right, this.$pagebar);
+        this._itemTurner.setButton(this.index, this.length);
+        this.addEvent();
     }
     const proto = Item.prototype;
 
@@ -197,20 +250,56 @@ const Item = (() => {
         // TODO this.$slider.style.transform = `translateX(${이동좌표}px)`;
         // TODO $pagebar 이미지에 대응되는 엘리먼트로 XCodT 클래스 이동 (on 처리)
         // TODO 가로사이즈는 innerWidth로 직접 잡거나, innerWidth를 캐싱해두고 사용
-    }
-    proto.resize = function() {
-        // HACK 현재 데이터바인딩을 지원하지 않으므로, 리스트 모든 엘리먼트 지우고 새로 렌더링
-        while(this.$sliderList.firstChild) {
-            this.$sliderList.removeChild(this.$sliderList.firstChild);
-        }
-        this.$sliderList.insertAdjacentHTML('beforeend', `
-            ${this.htmlSliderImgs(this._dataList)}
-        `);
-        // TODO 리프레시 전 슬라이드 이미지 다시 노출 (좌표보정)
-        // TODO 가로사이즈는 innerWidth로 직접 잡거나, innerWidth를 캐싱해두고 사용
+        this._itemTurner.translate(this.index, this.innerWidth, 250);
+        this._itemTurner.setButton(this.index, this.length);
+        this._itemTurner.setPagebar(this.index, this.onClass);
     }
 
-    proto.htmlSliderImgs = function(imgDataList) {
+    proto.leftClick = function(){
+        this.$right.style.display = '';
+        this.click(--this.index);
+    }
+
+    proto.rightClick = function(){
+        this.$left.style.display = '';
+        this.click(++this.index);
+    }
+
+    proto.resize = function() {
+        if(this._throttling) {return;}
+        this._throttling = setTimeout(() => {
+            this._throttling = null;
+            this.innerWidth = innerWidth;
+            // HACK 현재 데이터바인딩을 지원하지 않으므로, 리스트 모든 엘리먼트 지우고 새로 렌더링
+            while(this.$sliderList.firstChild) {
+                this.$sliderList.removeChild(this.$sliderList.firstChild);
+            }
+            this.$sliderList.insertAdjacentHTML('beforeend', `
+                ${this.htmlSliderImgs(this._dataList, this.innerWidth)}
+            `);
+            this._itemTurner.translate(this.index, this.innerWidth);
+            // TODO 리프레시 전 슬라이드 이미지 다시 노출 (좌표보정)
+            // TODO 가로사이즈는 innerWidth로 직접 잡거나, innerWidth를 캐싱해두고 사용
+        }, 100);
+    }
+
+    proto.addEvent = function() {
+        this.$lefClick = this.leftClick.bind(this);
+        this.$rightClick = this.rightClick.bind(this);
+        this.$resize = this.resize.bind(this);
+
+        this.$left.addEventListener('click', this.$lefClick);
+        this.$right.addEventListener('click', this.$rightClick);
+        window.addEventListener('resize', this.$resize);
+    }
+
+    proto.removeEvent = function() {
+        this.$left.removeEventListener('click', this.$lefClick);
+        this.$right.removeEventListener('click', this.$rightClick);
+        window.removeEventListener('resize', this.$resize);
+    }
+
+    proto.htmlSliderImgs = function(imgDataList, innerWidth) {
         const imgs = imgDataList.reduce((html, img) => {
             html += `
                 <li class="_-1_m6" style="opacity: 1; width: ${innerWidth}px;">
@@ -234,7 +323,7 @@ const Item = (() => {
     }
     proto.render = function(data, profileData) {
         const navs = this._dataList.reduce((html, img, index) => {
-            const on = index === 0 ? 'XCodT' : '';
+            const on = index === 0 ? this.onClass : '';
             html += `
                 <div class="Yi5aA ${on}"></div>
             `;
@@ -263,7 +352,7 @@ const Item = (() => {
                                         <div class="js-slider MreMs" tabindex="0" style="transition-duration: 0.25s; transform: translateX(0px);">
                                             <div class="qqm6D">
                                                 <ul class="YlNGR" style="padding-left: 0px; padding-right: 0px;">
-                                                    ${this.htmlSliderImgs(this._dataList)}
+                                                    ${this.htmlSliderImgs(this._dataList, innerWidth)}
                                                 </ul>
                                             </div>
                                         </div>
