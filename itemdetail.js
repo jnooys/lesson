@@ -174,7 +174,7 @@ const ItemDetail = (() => {
     return ItemDetail;
 })();
 
-/* XXX 아이템 움직여주는 객체 
+/* 아이템 움직여주는 객체 
 resize, click 모두 공통으로 $slider를 translate 해야하므로
 1) translate 메소드
 2) $left/$right button 노출 여부 메소드
@@ -184,25 +184,38 @@ resize, click 모두 공통으로 $slider를 translate 해야하므로
 - 클릭할 때는 1), 2), 3)을 모두 한 함수에서 호출하도록 묶어주는 게 좋을지...   
 구조 짜는게 제일 어렵네요 ㅠㅠ
 */
-const ItemTurner = (() => {
-    const ItemTurner = function($slider, $left, $right, $pagebar){
+/* TODO 우선 메소드 분리는 잘 되어 있는 것 같아요. 코드를 조금 수정했는데, 별다른 이슈가 없었습니다
+아쉬운 점은, 현재는 슬라이더가 단순히 변수와 함수를 모아놓은 네임스페이스? 정도로 쓰이고 있는 것 같습니다
+그리고 슬라이드 로직이 Item과 Slider에 분산되어 있어서 로직을 빠르게 파악하기가 어렵습니다
+기존 설계상 $slider, $left, $right, $pagebar 엘리먼트를 모두 받았으니 큰 변화 없는 선에서 조정해보면
+우선 버튼클릭 이벤트와 리사이즈 이벤트는 슬라이드 관련 로직이니, 슬라이더 안으로 끌어와주시고
+그렇게되면 this.innerWidth, this.index의 상태관리 주체는 슬라이더가 되니, 함께 끌어오면 좋을 것 같습니다
+setButton, setPagebar 최초실행도 Slider의 생성자 (혹은 create 메소드) 안에서 해줄 수 있을 것 같습니다
+슬라이드 관련로직을 Slider로 전부 격리시키는 방향으로 리팩토링 해보시고 (이름을 잘 지어야 설계가 쉬워요)
+이후에 어떻게 더 구조를 고도화할 수 있을 지 고민 해보세요~! */
+const Slider = (() => {
+    const Slider = function($slider, $left, $right, $pagebar){
         this.$slider = $slider;
         this.$left = $left;
         this.$right = $right;
         this.$pagebar = $pagebar;
     }
-    const proto = ItemTurner.prototype;
+    const proto = Slider.prototype;
 
     proto.translate = function(index, innerWidth, duration = 0){
+        this.$slider.style.transitionDuration = `${duration}ms`;
         const coordX = index * innerWidth * -1;
         this.$slider.style.transform = `translateX(${coordX}px)`;
-        this.$slider.style.transitionDuration = `${duration}ms`;
     }
 
+    // COMMENT 버튼 노출/숨김 로직 조금만 수정했습니다
     proto.setButton = function(index, length){
+        this.$left.style.display = '';
+        this.$right.style.display = '';
         if(index <= 0) {
             this.$left.style.display = 'none';
-        } else if (index >= length - 1) {
+        }
+        if(index >= length - 1) {
             this.$right.style.display = 'none';
         }
     }
@@ -210,11 +223,11 @@ const ItemTurner = (() => {
     proto.setPagebar = function(index, onClass){
         const $prevPagebar = this.$pagebar.getElementsByClassName(onClass)[0];
         const $nextPagebar = this.$pagebar.children[index];
-        $prevPagebar.classList.remove(onClass);
-        $nextPagebar.classList.add(onClass);
+        $prevPagebar && $prevPagebar.classList.remove(onClass);
+        $nextPagebar && $nextPagebar.classList.add(onClass);
     }
 
-    return ItemTurner;
+    return Slider;
 })();
 
 const Item = (() => {
@@ -229,12 +242,18 @@ const Item = (() => {
         this.$left = this.$el.querySelector('.js-left');
         this.$right = this.$el.querySelector('.js-right');
         this.$pagebar = this.$el.querySelector('.js-pagebar');
+        // COMMENT 사이즈 캐싱을 통한 성능튜닝인거죠? 잘 하셨어요
         this.innerWidth = innerWidth;
         this.index = 0;
-        this.length = this._dataList.length;
-        this._throttling = null;
-        this._itemTurner = new ItemTurner(this.$slider, this.$left, this.$right, this.$pagebar);
-        this._itemTurner.setButton(this.index, this.length);
+        /* TODO _dataList의 내용이 변경될 경우, 함께 챙겨줘야 해서 버그유발 가능성이 있습니다
+        특별히 값변동이 없고, 성능차이가 미미하므로 속성에서 제거하는 것도 고려 해보세요~! */
+        // this.length = this._dataList.length;
+        // this._throttling = null;
+        this._slider = new Slider(this.$slider, this.$left, this.$right, this.$pagebar);
+        /* COMMENT buttun의 init은 객체에서 하고, pagebar의 init은 마크업에서 하는 게 이상해서
+        init 로직은 전부 슬라이더에서 수행하도록 수정 했습니다 */
+        this._slider.setButton(this.index, this._dataList.length);
+        this._slider.setPagebar(this.index, this.onClass);
         this.addEvent();
     }
     const proto = Item.prototype;
@@ -242,31 +261,34 @@ const Item = (() => {
     proto.create = function() {
     }
     proto.destroy = function() {
+        /* BUG destroy 시에 this.$resize 이벤트리스너가 제거되지 않아 메모리 누수가 쌓이고 있습니다
+        root.destroy() 후 리사이즈 이벤트 발생시켜 보시면, 전부 살아있는 것 확인하실 수 있습니다
+        컴포넌트에서 추가되는 모든 추가로직은 대응되는 제거로직을 작성 해주시고,
+        destroy에서는 추가된 모든 것들을 제거하는 로직을 붙여주세요
+        지금은 여기서 this.removeEvent(); 부르면 될 것 같습니다~! */
         this.$parent.removeChild(this.$el);
     }
 
-    proto.click = function() {
-        // TODO $left/$right 화살표 숨김/표시 (필요한 로직 추가)
-        // TODO this.$slider.style.transform = `translateX(${이동좌표}px)`;
-        // TODO $pagebar 이미지에 대응되는 엘리먼트로 XCodT 클래스 이동 (on 처리)
-        // TODO 가로사이즈는 innerWidth로 직접 잡거나, innerWidth를 캐싱해두고 사용
-        this._itemTurner.translate(this.index, this.innerWidth, 250);
-        this._itemTurner.setButton(this.index, this.length);
-        this._itemTurner.setPagebar(this.index, this.onClass);
-    }
-
-    proto.leftClick = function(){
-        this.$right.style.display = '';
-        this.click(--this.index);
-    }
-
-    proto.rightClick = function(){
-        this.$left.style.display = '';
-        this.click(++this.index);
+    // COMMENT 로직을 합치는 게 조금 더 나을 것 같아서, 합치고 분기처리로 변경했습니다
+    proto.click = function(e) {
+        if(this.$left === e.currentTarget) {
+            this.index--;
+        }
+        /* COMMENT else if로 연결하면 상위 if문 조건이 계속 아래로 상속이 되어서 (유지보수성이 떨어져서)
+        저는 꼭 필요할 때만 else if로 달고, 아니면 성능손해를 조금 보더라도 별도의 if로 분기하는 편입니다
+        정답은 아니니 참고만 하세요~! */
+        if(this.$right === e.currentTarget) {
+            this.index++;
+        }
+        this._slider.translate(this.index, this.innerWidth, 250);
+        this._slider.setButton(this.index, this._dataList.length);
+        this._slider.setPagebar(this.index, this.onClass);
     }
 
     proto.resize = function() {
-        if(this._throttling) {return;}
+        if(this._throttling) {
+            return;
+        }
         this._throttling = setTimeout(() => {
             this._throttling = null;
             this.innerWidth = innerWidth;
@@ -277,25 +299,23 @@ const Item = (() => {
             this.$sliderList.insertAdjacentHTML('beforeend', `
                 ${this.htmlSliderImgs(this._dataList, this.innerWidth)}
             `);
-            this._itemTurner.translate(this.index, this.innerWidth);
-            // TODO 리프레시 전 슬라이드 이미지 다시 노출 (좌표보정)
-            // TODO 가로사이즈는 innerWidth로 직접 잡거나, innerWidth를 캐싱해두고 사용
+            // COMMENT 리사이즈도 슬라이더로 처리하신 건 꽤 괜찮은 방법인 것 같아요
+            this._slider.translate(this.index, this.innerWidth);
         }, 100);
     }
 
     proto.addEvent = function() {
-        this.$lefClick = this.leftClick.bind(this);
-        this.$rightClick = this.rightClick.bind(this);
+        this.$click = this.click.bind(this);
         this.$resize = this.resize.bind(this);
 
-        this.$left.addEventListener('click', this.$lefClick);
-        this.$right.addEventListener('click', this.$rightClick);
+        this.$left.addEventListener('click', this.$click);
+        this.$right.addEventListener('click', this.$click);
         window.addEventListener('resize', this.$resize);
     }
 
     proto.removeEvent = function() {
-        this.$left.removeEventListener('click', this.$lefClick);
-        this.$right.removeEventListener('click', this.$rightClick);
+        this.$left.removeEventListener('click', this.$click);
+        this.$right.removeEventListener('click', this.$click);
         window.removeEventListener('resize', this.$resize);
     }
 
@@ -322,11 +342,8 @@ const Item = (() => {
         return imgs;
     }
     proto.render = function(data, profileData) {
-        const navs = this._dataList.reduce((html, img, index) => {
-            const on = index === 0 ? this.onClass : '';
-            html += `
-                <div class="Yi5aA ${on}"></div>
-            `;
+        const navs = this._dataList.reduce(html => {
+            html += `<div class="Yi5aA"></div>`;
             return html;
         }, '');
         this.$parent.insertAdjacentHTML('afterbegin', `
